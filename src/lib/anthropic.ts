@@ -1,5 +1,46 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { DEFAULT_MODEL, modelRequestParams } from "./models";
+import { query } from "./db";
+
+// Optional analytics context for a model pass. When supplied, callModel records
+// the call's token usage to the model_calls table (best-effort, fire-and-forget)
+// so the admin dashboard can report API activity, token volume, and cost.
+export interface ModelCallLogContext {
+  pieceId?: string | null;
+  createdBy?: string | null;
+}
+
+// Persists one model_calls row from an Anthropic usage block. Never throws —
+// analytics must never affect generation. Skips silently when there's nothing
+// useful to record.
+async function logModelCall(
+  label: string,
+  model: string,
+  usage: Anthropic.Messages.Usage | undefined,
+  ctx: ModelCallLogContext | undefined,
+): Promise<void> {
+  if (!usage) return;
+  try {
+    await query(
+      `INSERT INTO model_calls
+        (piece_id, pass_label, model, input_tokens, output_tokens,
+         cache_read_tokens, cache_write_tokens, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [
+        ctx?.pieceId ?? null,
+        label,
+        model,
+        usage.input_tokens ?? 0,
+        usage.output_tokens ?? 0,
+        usage.cache_read_input_tokens ?? 0,
+        usage.cache_creation_input_tokens ?? 0,
+        ctx?.createdBy ?? null,
+      ],
+    );
+  } catch (err) {
+    console.error(`logModelCall failed for ${label}:`, err);
+  }
+}
 
 // Shared Anthropic client + model-call helper used by every model pass (the
 // generation pipeline and the feedback rewrite/quote-swap flows). Streaming
@@ -55,6 +96,8 @@ export async function callModel(
   // every pass on a piece runs on the same model. The per-model thinking/effort
   // request shape is derived from the registry in models.ts.
   model: string = DEFAULT_MODEL,
+  // When provided, the call's token usage is logged to model_calls for analytics.
+  logContext?: ModelCallLogContext,
 ): Promise<string> {
   let message: Anthropic.Messages.Message | undefined;
 
@@ -94,6 +137,10 @@ export async function callModel(
   if (!message) {
     throw new Error(`Model returned no message on the ${label} pass.`);
   }
+
+  // Record token usage for the analytics dashboard. Fire-and-forget — never
+  // block or fail the pass on a logging error.
+  void logModelCall(label, model, message.usage, logContext);
 
   const text = message.content
     .filter((b): b is Anthropic.TextBlock => b.type === "text")

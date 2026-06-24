@@ -1,9 +1,14 @@
+import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { authConfig } from "@/auth.config";
 
-// Protect every route by default. `auth()` attaches the session to `req.auth`;
-// any request without one is redirected to /login. The matcher below keeps the
-// auth API routes, the login page, and Next.js static assets public.
+// The middleware runs on the edge runtime, so it builds its own NextAuth
+// instance from the edge-safe authConfig (no `pg`, no login-logging events —
+// those live in src/auth.ts, which the API routes use). Protect every route by
+// default: any request without a session is redirected to /login. The matcher
+// below keeps the auth API routes, the login page, and Next.js static assets public.
+const { auth } = NextAuth(authConfig);
+
 export default auth((req) => {
   if (!req.auth) {
     const loginUrl = new URL("/login", req.nextUrl.origin);

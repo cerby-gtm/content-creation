@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { addRule } from "@/lib/documents";
+import { getSessionEmail } from "@/lib/session";
 
 export const runtime = "nodejs";
 
@@ -11,7 +12,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  let payload: { section?: unknown; text?: unknown; edited_by?: unknown };
+  let payload: { section?: unknown; text?: unknown };
   try {
     payload = await request.json();
   } catch {
@@ -22,8 +23,7 @@ export async function POST(
   }
   const section =
     typeof payload.section === "string" && payload.section.trim() ? payload.section.trim() : null;
-  const editedBy =
-    typeof payload.edited_by === "string" && payload.edited_by.trim() ? payload.edited_by.trim() : null;
+  const editedBy = await getSessionEmail();
 
   try {
     await addRule(id, section, payload.text.trim(), editedBy);

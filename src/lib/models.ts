@@ -92,6 +92,52 @@ export function modelLabel(id: string | null | undefined): string {
   return labelById.get(id) ?? id;
 }
 
+// ---------------------------------------------------------------------------
+// Approximate list pricing (USD per MILLION tokens) used only for the cost
+// ESTIMATES on the admin analytics dashboard — nothing is billed off these.
+// Update as Anthropic pricing changes. Cache reads bill at ~10% of input and
+// cache writes at ~125%. An unknown model id falls back to Opus-tier pricing so
+// a cost is never silently understated to zero.
+// ---------------------------------------------------------------------------
+export interface ModelPricing {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+}
+
+const PRICING: Record<string, ModelPricing> = {
+  "claude-opus-4-8": { input: 15, output: 75, cacheRead: 1.5, cacheWrite: 18.75 },
+  "claude-opus-4-7": { input: 15, output: 75, cacheRead: 1.5, cacheWrite: 18.75 },
+  "claude-sonnet-4-6": { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
+  "claude-haiku-4-5": { input: 1, output: 5, cacheRead: 0.1, cacheWrite: 1.25 },
+  "claude-fable-5": { input: 15, output: 75, cacheRead: 1.5, cacheWrite: 18.75 },
+};
+
+const DEFAULT_PRICING = PRICING["claude-opus-4-8"];
+
+export function modelPricing(id: string | null | undefined): ModelPricing {
+  return (id && PRICING[id]) || DEFAULT_PRICING;
+}
+
+/** Estimated USD cost of a call from its per-model token counts. */
+export function estimateCostUsd(
+  model: string | null | undefined,
+  inputTokens: number,
+  outputTokens: number,
+  cacheReadTokens: number,
+  cacheWriteTokens: number,
+): number {
+  const p = modelPricing(model);
+  return (
+    (inputTokens * p.input +
+      outputTokens * p.output +
+      cacheReadTokens * p.cacheRead +
+      cacheWriteTokens * p.cacheWrite) /
+    1_000_000
+  );
+}
+
 /**
  * Build the per-model thinking/effort request parameters. Unknown ids (e.g. a
  * GENERATION_MODEL env override not in the registry) get the full Opus-style

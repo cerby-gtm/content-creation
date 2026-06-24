@@ -1,4 +1,4 @@
-import { callModel, getAnthropicClient } from "./anthropic";
+import { type ModelCallLogContext, callModel, getAnthropicClient } from "./anthropic";
 import {
   loadFoundationContext,
   loadHumanizerContext,
@@ -112,7 +112,12 @@ function buildUserMessage(input: PieceInput): string {
  * must precede humanizing so the humanize pass can't rephrase partner-sensitive
  * sentences the soften pass relies on. The caller persists the result to Postgres.
  */
-export async function generatePiece(input: PieceInput): Promise<string> {
+export async function generatePiece(
+  input: PieceInput,
+  // Analytics context so each pass's token usage is attributed to the piece and
+  // the signed-in user. Optional — generation works without it.
+  logContext?: ModelCallLogContext,
+): Promise<string> {
   const client = getAnthropicClient();
   // The user-selected model. resolveModel() falls back to the default for a
   // missing or unrecognized value. All three passes run on the same model.
@@ -126,6 +131,7 @@ export async function generatePiece(input: PieceInput): Promise<string> {
     "draft",
     false,
     model,
+    logContext,
   );
 
   // Pass 2 — Soften IDP/IGA framing.
@@ -136,6 +142,7 @@ export async function generatePiece(input: PieceInput): Promise<string> {
     "soften",
     false,
     model,
+    logContext,
   );
 
   // Pass 3 — Humanize (final output).
@@ -146,6 +153,7 @@ export async function generatePiece(input: PieceInput): Promise<string> {
     "humanize",
     false,
     model,
+    logContext,
   );
 
   return humanized;

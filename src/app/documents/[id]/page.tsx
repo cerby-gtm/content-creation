@@ -38,7 +38,6 @@ export default function DocumentDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [editedBy, setEditedBy] = useState("");
 
   // Prose editing
   const [bodyDraft, setBodyDraft] = useState("");
@@ -85,7 +84,7 @@ export default function DocumentDetailPage() {
       const res = await fetch(url, {
         method,
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ...body, edited_by: editedBy.trim() || undefined }),
+        body: JSON.stringify(body ?? {}),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status}).`);
@@ -133,19 +132,6 @@ export default function DocumentDetailPage() {
       )}
 
       {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
-
-      {!readOnly && (
-        <label className="mt-6 block text-xs font-medium text-gray-500">
-          Your name (optional — recorded with the change)
-          <input
-            type="text"
-            value={editedBy}
-            onChange={(e) => setEditedBy(e.target.value)}
-            placeholder="e.g. Andy"
-            className="mt-1 block w-64 rounded-md border border-gray-300 px-3 py-1.5 text-sm"
-          />
-        </label>
-      )}
 
       {/* PROSE EDITOR */}
       {doc.kind === "prose" && (

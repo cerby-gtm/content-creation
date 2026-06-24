@@ -35,7 +35,6 @@ export default function NewPiecePage() {
   const [lengthMode, setLengthMode] = useState<string>(LENGTH_MODES[0]);
   const [targetWords, setTargetWords] = useState<string>("1200");
   const [model, setModel] = useState<string>(DEFAULT_MODEL);
-  const [createdBy, setCreatedBy] = useState("");
 
   const selectedModel = MODELS.find((m) => m.id === model);
 
@@ -72,7 +71,6 @@ export default function NewPiecePage() {
           length_mode: lengthMode,
           target_words: lengthMode === "Target" ? Number(targetWords) : null,
           model,
-          created_by: createdBy,
         }),
       });
       const text = await res.text();
@@ -310,19 +308,6 @@ export default function NewPiecePage() {
           {selectedModel && (
             <p className="mt-1 text-xs text-gray-500">{selectedModel.blurb}</p>
           )}
-        </div>
-
-        <div>
-          <label className={labelCls} htmlFor="created_by">
-            Your name or email (optional)
-          </label>
-          <input
-            id="created_by"
-            value={createdBy}
-            onChange={(e) => setCreatedBy(e.target.value)}
-            placeholder="you@cerby.com"
-            className={inputCls}
-          />
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}

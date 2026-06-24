@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { applySpanEdit, findReplacementQuote, formatLikeSelection } from "@/lib/feedback";
 import { classifyEdit } from "@/lib/rules";
+import { getSessionEmail } from "@/lib/session";
 
 export const runtime = "nodejs";
 
@@ -37,7 +38,7 @@ export async function POST(
   const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
   const selectedText = typeof payload.selected_text === "string" ? payload.selected_text : "";
   const instruction = str(payload.instruction) ?? "This quote doesn't fit — find a better one from the transcript.";
-  const createdBy = str(payload.created_by);
+  const createdBy = await getSessionEmail();
   const selStart = Number.isFinite(Number(payload.selection_start)) ? Number(payload.selection_start) : null;
   const selEnd = Number.isFinite(Number(payload.selection_end)) ? Number(payload.selection_end) : null;
 
@@ -72,6 +73,8 @@ export async function POST(
       currentQuote,
       instruction,
       model: piece.model,
+      pieceId: id,
+      createdBy,
     });
 
     if (!result.found) {

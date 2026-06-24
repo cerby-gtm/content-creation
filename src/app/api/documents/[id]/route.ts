@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDocument, saveBody } from "@/lib/documents";
+import { getSessionEmail } from "@/lib/session";
 
 export const runtime = "nodejs";
 
@@ -20,7 +21,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  let payload: { body?: unknown; edited_by?: unknown };
+  let payload: { body?: unknown };
   try {
     payload = await request.json();
   } catch {
@@ -29,8 +30,7 @@ export async function PUT(
   if (typeof payload?.body !== "string") {
     return NextResponse.json({ error: "Missing 'body'." }, { status: 400 });
   }
-  const editedBy =
-    typeof payload.edited_by === "string" && payload.edited_by.trim() ? payload.edited_by.trim() : null;
+  const editedBy = await getSessionEmail();
 
   try {
     await saveBody(id, payload.body, editedBy);

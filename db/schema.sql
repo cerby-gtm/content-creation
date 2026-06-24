@@ -201,3 +201,49 @@ CREATE TABLE IF NOT EXISTS published_versions (
 );
 
 CREATE INDEX IF NOT EXISTS published_versions_piece_idx ON published_versions (piece_id);
+
+-- ---------------------------------------------------------------------------
+-- Analytics: login tracking (see the admin dashboard at /admin/analytics)
+--
+-- NextAuth keeps no record of sign-ins on its own (the app uses stateless JWT
+-- sessions, no database adapter). This table is written from the `signIn` event
+-- in src/auth.ts so the admin dashboard can report who logged in and when. It is
+-- the only place login activity is persisted.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS auth_events (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email      TEXT NOT NULL,                 -- the authenticated Workspace email
+  name       TEXT,                          -- display name from the Google profile
+  event_type TEXT NOT NULL DEFAULT 'login', -- 'login' (room to add 'logout' later)
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS auth_events_email_idx ON auth_events (email);
+CREATE INDEX IF NOT EXISTS auth_events_created_at_idx ON auth_events (created_at DESC);
+
+-- ---------------------------------------------------------------------------
+-- Analytics: Anthropic API call + token usage log
+--
+-- One row per model pass (callModel in src/lib/anthropic.ts). Best-effort and
+-- fire-and-forget: a failure to log never affects generation. piece_id is null
+-- for passes not tied to a piece (e.g. rule classification). Token counts come
+-- straight from the Anthropic response usage block; cost is estimated at read
+-- time from the pricing map in src/lib/models.ts, not stored here.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS model_calls (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  piece_id            UUID REFERENCES pieces(id) ON DELETE SET NULL,
+  pass_label          TEXT NOT NULL,        -- 'draft' | 'soften' | 'humanize' | 'rewrite' | ...
+  model               TEXT NOT NULL,        -- the Claude model id used
+  input_tokens        INTEGER NOT NULL DEFAULT 0,
+  output_tokens       INTEGER NOT NULL DEFAULT 0,
+  cache_read_tokens   INTEGER NOT NULL DEFAULT 0,
+  cache_write_tokens  INTEGER NOT NULL DEFAULT 0,
+  created_by          TEXT,                 -- session email of the actor, when known
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS model_calls_created_at_idx ON model_calls (created_at DESC);
+CREATE INDEX IF NOT EXISTS model_calls_piece_idx ON model_calls (piece_id);

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { proposeRuleFromPrompt } from "@/lib/rules";
+import { getSessionEmail } from "@/lib/session";
 
 export const runtime = "nodejs";
 
@@ -21,8 +22,7 @@ export async function POST(request: Request) {
   if (!pieceId) return NextResponse.json({ error: "Missing 'piece_id'." }, { status: 400 });
   if (!prompt) return NextResponse.json({ error: "Missing 'prompt'." }, { status: 400 });
 
-  const createdBy =
-    typeof payload.created_by === "string" && payload.created_by.trim() ? payload.created_by.trim() : null;
+  const createdBy = await getSessionEmail();
 
   try {
     const result = await proposeRuleFromPrompt(pieceId, prompt, createdBy);

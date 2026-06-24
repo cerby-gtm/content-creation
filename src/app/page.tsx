@@ -28,6 +28,7 @@ export default function HomePage() {
   const [pendingDelete, setPendingDelete] = useState<PieceListItem | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   async function confirmDelete() {
     if (!pendingDelete) return;
@@ -69,37 +70,62 @@ export default function HomePage() {
     return () => clearInterval(t);
   }, []);
 
+  useEffect(() => {
+    // Only admins see the Analytics link; the page itself also enforces this.
+    fetch("/api/me", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setIsAdmin(Boolean(d?.isAdmin)))
+      .catch(() => {});
+  }, []);
+
   return (
-    <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-10">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Cerby Content OS</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Draft long-form content from an SME interview transcript.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link
-            href="/documents"
-            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50"
-          >
-            Foundation
-          </Link>
+    <>
+      <aside className="fixed left-0 top-0 z-30 hidden h-screen w-72 overflow-y-auto border-r border-gray-200 bg-gray-50 px-4 py-6 lg:block">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+          Cerby Content OS
+        </h2>
+        <nav className="mt-4 space-y-1">
           <Link
             href="/review"
-            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50"
+            className="block rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
           >
             Proposed rules
           </Link>
           <Link
-            href="/new"
-            className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+            href="/documents"
+            className="block rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
           >
-            New piece
+            Foundation files
           </Link>
-          <SignOutButton />
+          {isAdmin && (
+            <Link
+              href="/admin/analytics"
+              className="block rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+            >
+              Analytics
+            </Link>
+          )}
+        </nav>
+      </aside>
+
+      <main className="w-full max-w-4xl flex-1 px-6 py-10 lg:ml-72">
+        <div className="mb-8 flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold">Cerby Content OS</h1>
+            <p className="mt-1 text-sm text-gray-500">
+              Draft long-form content from an SME interview transcript.
+            </p>
+          </div>
+          <div className="flex flex-col items-end gap-3">
+            <SignOutButton />
+            <Link
+              href="/new"
+              className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+            >
+              New piece
+            </Link>
+          </div>
         </div>
-      </div>
 
       {loading && <p className="text-sm text-gray-500">Loading…</p>}
       {error && <p className="text-sm text-red-600">{error}</p>}
@@ -206,6 +232,7 @@ export default function HomePage() {
           </div>
         </div>
       )}
-    </main>
+      </main>
+    </>
   );
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { revertToVersion } from "@/lib/documents";
+import { getSessionEmail } from "@/lib/session";
 
 export const runtime = "nodejs";
 
@@ -10,7 +11,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  let payload: { version_id?: unknown; edited_by?: unknown };
+  let payload: { version_id?: unknown };
   try {
     payload = await request.json();
   } catch {
@@ -19,8 +20,7 @@ export async function POST(
   if (typeof payload?.version_id !== "string") {
     return NextResponse.json({ error: "Missing 'version_id'." }, { status: 400 });
   }
-  const editedBy =
-    typeof payload.edited_by === "string" && payload.edited_by.trim() ? payload.edited_by.trim() : null;
+  const editedBy = await getSessionEmail();
 
   try {
     await revertToVersion(id, payload.version_id, editedBy);

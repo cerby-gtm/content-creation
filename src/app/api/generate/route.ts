@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { query, queryOne } from "@/lib/db";
+import { getSessionEmail } from "@/lib/session";
 import { type PieceInput, deriveTitle, generatePiece } from "@/lib/generate";
 import { resolveModel } from "@/lib/models";
 import { extractQuoteUsages } from "@/lib/quotes";
@@ -13,10 +14,10 @@ interface PieceRow {
 
 // Runs generation and updates the row. Fire-and-forget from the POST handler so
 // the browser doesn't wait on a multi-minute API call.
-async function runGeneration(id: string, input: PieceInput) {
+async function runGeneration(id: string, input: PieceInput, createdBy: string | null) {
   try {
     await query("UPDATE pieces SET status = 'generating', updated_at = now() WHERE id = $1", [id]);
-    const body = await generatePiece(input);
+    const body = await generatePiece(input, { pieceId: id, createdBy });
     const title = deriveTitle(body) ?? input.interview_topic ?? null;
     await query(
       "UPDATE pieces SET status = 'done', body = $1, title = COALESCE(title, $2), updated_at = now() WHERE id = $3",
@@ -103,7 +104,9 @@ export async function POST(request: Request) {
     model,
   };
 
-  const createdBy = str(payload.created_by);
+  // Attribution comes from the authenticated session, never the request body —
+  // analytics must reflect who is actually signed in, not a self-reported name.
+  const createdBy = await getSessionEmail();
 
   let row: PieceRow | null;
   try {
@@ -141,7 +144,7 @@ export async function POST(request: Request) {
   }
 
   // Kick off generation; do not await.
-  void runGeneration(row.id, input);
+  void runGeneration(row.id, input, createdBy);
 
   return NextResponse.json({ id: row.id, status: "pending" }, { status: 201 });
 }

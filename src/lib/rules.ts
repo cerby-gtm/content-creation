@@ -19,6 +19,8 @@ interface EditEventRow {
   instruction: string | null;
   before_text: string;
   after_text: string;
+  piece_id: string | null;
+  created_by: string | null;
 }
 
 interface DocRow {
@@ -436,7 +438,10 @@ export async function proposeRuleFromPrompt(
   ].join("\n");
 
   const client = getAnthropicClient();
-  const raw = await callModel(client, PROPOSE_RULES, userMessage, "propose");
+  const raw = await callModel(client, PROPOSE_RULES, userMessage, "propose", false, undefined, {
+    pieceId,
+    createdBy,
+  });
   const parsed = parseJsonObject(raw);
 
   if (parsed.can_route !== true) {
@@ -545,7 +550,7 @@ export async function updateProposedRule(
 export async function classifyEdit(feedbackEventId: string): Promise<void> {
   try {
     const ev = await queryOne<EditEventRow>(
-      "SELECT id, edit_type, instruction, before_text, after_text FROM feedback_events WHERE id = $1",
+      "SELECT id, edit_type, instruction, before_text, after_text, piece_id, created_by FROM feedback_events WHERE id = $1",
       [feedbackEventId],
     );
     if (!ev) return;
@@ -560,7 +565,10 @@ export async function classifyEdit(feedbackEventId: string): Promise<void> {
     const system = CLASSIFY_RULES;
     const userMessage = buildUserMessage(ev, docs, activeRules);
     const client = getAnthropicClient();
-    const raw = await callModel(client, system, userMessage, "classify");
+    const raw = await callModel(client, system, userMessage, "classify", false, undefined, {
+      pieceId: ev.piece_id,
+      createdBy: ev.created_by,
+    });
     const parsed = parseJsonObject(raw);
 
     const lane = parsed.lane === "rule_candidate" ? "rule_candidate" : "one_off";

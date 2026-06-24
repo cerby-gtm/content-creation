@@ -1,24 +1,17 @@
 import { NextResponse } from "next/server";
 import { retireRule } from "@/lib/documents";
+import { getSessionEmail } from "@/lib/session";
 
 export const runtime = "nodejs";
 
 // POST /api/rules/[id]/retire — retire an active rule and remove its bullet from
-// the ruleset document body. Body: { edited_by? }
+// the ruleset document body. The actor is the authenticated session email.
 export async function POST(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  let editedBy: string | null = null;
-  try {
-    const payload = await request.json();
-    if (typeof payload?.edited_by === "string" && payload.edited_by.trim()) {
-      editedBy = payload.edited_by.trim();
-    }
-  } catch {
-    // No body is fine.
-  }
+  const editedBy = await getSessionEmail();
 
   try {
     await retireRule(id, editedBy);

@@ -40,6 +40,9 @@ export interface RewriteRequest {
   contextAfter?: string | null;
   // The model the piece was generated with, so edits run on the same model.
   model?: string | null;
+  // Analytics attribution for the model_calls log.
+  pieceId?: string | null;
+  createdBy?: string | null;
 }
 
 // Calls the model to rewrite the highlighted span. Returns the replacement text
@@ -64,7 +67,10 @@ export async function rewriteSpan(req: RewriteRequest): Promise<string> {
   const client = getAnthropicClient();
   // allowEmpty: a deletion is a legitimate empty replacement, and the model may
   // express it either as the REMOVE_SPAN token or by returning nothing at all.
-  const raw = await callModel(client, system, userMessage, "rewrite", true, resolveModel(req.model));
+  const raw = await callModel(client, system, userMessage, "rewrite", true, resolveModel(req.model), {
+    pieceId: req.pieceId ?? null,
+    createdBy: req.createdBy ?? null,
+  });
   // Normalize both deletion signals to an empty replacement.
   return raw.trim() === REMOVE_SPAN ? "" : raw;
 }
@@ -190,6 +196,9 @@ export interface QuoteSwapRequest {
   instruction: string;
   // The model the piece was generated with, so edits run on the same model.
   model?: string | null;
+  // Analytics attribution for the model_calls log.
+  pieceId?: string | null;
+  createdBy?: string | null;
 }
 
 export interface QuoteSwapResult {
@@ -229,7 +238,10 @@ export async function findReplacementQuote(req: QuoteSwapRequest): Promise<Quote
   ].join("\n");
 
   const client = getAnthropicClient();
-  const raw = await callModel(client, system, userMessage, "quote-swap", false, resolveModel(req.model));
+  const raw = await callModel(client, system, userMessage, "quote-swap", false, resolveModel(req.model), {
+    pieceId: req.pieceId ?? null,
+    createdBy: req.createdBy ?? null,
+  });
   const parsed = parseJsonObject(raw);
 
   const found = parsed.found === true;

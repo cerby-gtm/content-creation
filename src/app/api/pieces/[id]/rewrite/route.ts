@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { COULD_NOT_REWRITE, applySpanEdit, rewriteSpan } from "@/lib/feedback";
 import { classifyEdit } from "@/lib/rules";
+import { getSessionEmail } from "@/lib/session";
 
 export const runtime = "nodejs";
 
@@ -37,7 +38,7 @@ export async function POST(
   const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
   const selectedText = typeof payload.selected_text === "string" ? payload.selected_text : "";
   const instruction = str(payload.instruction);
-  const createdBy = str(payload.created_by);
+  const createdBy = await getSessionEmail();
   const contextBefore = str(payload.context_before);
   const contextAfter = str(payload.context_after);
   const selStart = Number.isFinite(Number(payload.selection_start)) ? Number(payload.selection_start) : null;
@@ -77,6 +78,8 @@ export async function POST(
       contextBefore,
       contextAfter,
       model: piece.model,
+      pieceId: id,
+      createdBy,
     });
 
     const declined = replacement.includes(COULD_NOT_REWRITE);

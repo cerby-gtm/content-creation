@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { pool, query, queryOne } from "@/lib/db";
 import { extractChanges } from "@/lib/publish";
 import { classifyEdit } from "@/lib/rules";
+import { getSessionEmail } from "@/lib/session";
 
 export const runtime = "nodejs";
 
@@ -36,16 +37,12 @@ export async function POST(
 ) {
   const { id } = await params;
 
-  let payload: Record<string, unknown> = {};
   try {
-    payload = await request.json();
+    await request.json();
   } catch {
     // Body is optional; ignore a missing/invalid JSON body.
   }
-  const createdBy =
-    typeof payload.created_by === "string" && payload.created_by.trim()
-      ? payload.created_by.trim()
-      : null;
+  const createdBy = await getSessionEmail();
 
   const piece = await queryOne<PieceRow>(
     "SELECT id, body, status FROM pieces WHERE id = $1",

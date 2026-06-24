@@ -1,27 +1,20 @@
 import { NextResponse } from "next/server";
 import { approveProposedRule } from "@/lib/rules";
+import { getSessionEmail } from "@/lib/session";
 
 export const runtime = "nodejs";
 
-// POST /api/rules/[id]/approve  Body: { approved_by? }
-// Commits a proposed rule into the live foundation (versioned).
+// POST /api/rules/[id]/approve
+// Commits a proposed rule into the live foundation (versioned). The approver is
+// the authenticated session email, so the version-history line reads
+// "approved rule · andy.binkley@cerby.com". Falls back to "reviewer" only if no
+// session email is resolvable.
 export async function POST(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  // No auth/user system yet, so default the approver label to "reviewer"; the
-  // version-history line then reads "approved rule · reviewer". If a caller
-  // sends approved_by, it's threaded through for when user identity exists.
-  let approvedBy = "reviewer";
-  try {
-    const payload = await request.json();
-    if (typeof payload?.approved_by === "string" && payload.approved_by.trim()) {
-      approvedBy = payload.approved_by.trim();
-    }
-  } catch {
-    // No body is fine.
-  }
+  const approvedBy = (await getSessionEmail()) ?? "reviewer";
 
   try {
     const result = await approveProposedRule(id, approvedBy);

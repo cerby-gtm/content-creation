@@ -1,42 +1,29 @@
 import NextAuth from "next-auth";
-import Google from "next-auth/providers/google";
+import { authConfig } from "./auth.config";
+import { query } from "@/lib/db";
 
-// The single Workspace domain allowed to sign in. Defense-in-depth: the OAuth
-// consent screen should be set to "Internal" in Google Cloud (so only cerby.com
-// Workspace users can authenticate at all), the `hd` param hints the domain to
-// Google, and the signIn callback below hard-rejects anything not @cerby.com.
-const ALLOWED_DOMAIN = "cerby.com";
+// The full server-side auth instance used by the API route handlers and server
+// components. It extends the edge-safe authConfig (providers, callbacks, pages)
+// with a Node-only `events.signIn` that records each sign-in to Postgres — the
+// only place login activity is persisted (the app uses stateless JWT sessions
+// with no database adapter). This module is never imported by the edge
+// middleware, so the `pg`-backed query() import here is safe.
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  // Railway (and any non-Vercel host) needs to trust the proxy host header.
-  trustHost: true,
-  providers: [
-    Google({
-      authorization: {
-        params: {
-          // Restrict the Google account chooser to the Cerby Workspace and
-          // always show the chooser so a wrong personal account isn't silently reused.
-          hd: ALLOWED_DOMAIN,
-          prompt: "select_account",
-        },
-      },
-    }),
-  ],
-  pages: {
-    signIn: "/login",
-  },
-  callbacks: {
-    // Final gate: only verified @cerby.com Workspace accounts get in.
-    signIn({ profile }) {
-      return Boolean(
-        profile?.email_verified &&
-          profile.hd === ALLOWED_DOMAIN &&
-          profile.email?.endsWith(`@${ALLOWED_DOMAIN}`),
-      );
-    },
-    // `authorized` is consulted by the middleware export below.
-    authorized({ auth }) {
-      return Boolean(auth?.user);
+  ...authConfig,
+  events: {
+    // Fires on every fresh sign-in. Best-effort: a logging failure must never
+    // block the user from authenticating.
+    async signIn({ user }) {
+      if (!user?.email) return;
+      try {
+        await query(
+          "INSERT INTO auth_events (email, name, event_type) VALUES ($1, $2, 'login')",
+          [user.email, user.name ?? null],
+        );
+      } catch (err) {
+        console.error("auth_events login insert failed:", err);
+      }
     },
   },
 });
