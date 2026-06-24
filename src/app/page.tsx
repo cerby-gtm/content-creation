@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import SignOutButton from "./components/SignOutButton";
 
 interface PieceListItem {
   id: string;
@@ -96,6 +97,7 @@ export default function HomePage() {
           >
             New piece
           </Link>
+          <SignOutButton />
         </div>
       </div>
 
