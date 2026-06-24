@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sort -t: -k1 -n)",
+      "Edit(/.claude/skills/sme-transcript-draft/**)",
+      "Edit(/.claude/skills/webinar-content-draft/**)",
+      "Edit(/.claude/skills/create-social-content/**)",
+      "Read(//Users/andybinkley/gtm-os/src/app/api/pieces/**)",
+      "Bash(npx tsc *)",
+      "Bash(echo \"tsc exit: $?\")",
+      "Bash(npx eslint *)",
+      "Bash(echo \"eslint exit: $?\")",
+      "Edit(/.claude/skills/idp-iga-soften/**)"
+    ]
+  }
+}
