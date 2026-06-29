@@ -20,7 +20,7 @@ export const COULD_NOT_REWRITE = "// COULD NOT REWRITE — REVIEW:";
 // out. A token (not just an empty completion) keeps the intent explicit.
 export const REMOVE_SPAN = "<<REMOVE>>";
 
-const REWRITE_PASS_RULES = `# Targeted rewrite pass
+export const REWRITE_PASS_RULES = `# Targeted rewrite pass
 
 You are rewriting ONE highlighted span of an already-drafted Cerby piece, in response to an editor's instruction. The full piece is provided only for context.
 

@@ -11,10 +11,14 @@
     "start": "next start",
     "lint": "eslint",
     "migrate": "tsx db/migrate.ts",
-    "seed": "tsx db/seed-foundation.ts"
+    "seed": "tsx db/seed-foundation.ts",
+    "seed:repurpose": "SEED_SCOPE=repurpose tsx db/seed-foundation.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",
+    "@aws-sdk/client-s3": "^3.1075.0",
+    "@aws-sdk/s3-request-presigner": "^3.1075.0",
+    "@deepgram/sdk": "^5.4.0",
     "dotenv": "^17.4.2",
     "next": "16.2.9",
     "next-auth": "^5.0.0-beta.31",

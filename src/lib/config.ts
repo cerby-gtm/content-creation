@@ -41,3 +41,45 @@ export const SOFTEN_FOUNDATION_FILES = [
 // Pass 3 — Humanize. Strips AI-writing patterns. Self-contained skill (no
 // foundation dependencies); voice is constrained by the pass wrapper, not files.
 export const HUMANIZER_SKILL_PATH = ".claude/skills/humanizer/SKILL.md";
+
+// ---------------------------------------------------------------------------
+// Content Repurpose mode (see the repurpose plan / LIVE-APP-DESIGN.md)
+//
+// The second pipeline (webinar → transcript → topics → social/long-form/email)
+// reuses the same foundation + analytics. These skills and example files are
+// seeded into the documents table alongside the SME ones, so they appear under
+// Foundation files and accumulate rules through the same feedback loop.
+// ---------------------------------------------------------------------------
+
+// The topics-breakdown extractor (Phase: topics). This is the repo's CANONICAL
+// instruction set — it lives as a slash command (the same one used in the manual
+// Claude Code workflow), seeded into the documents table so the app generates
+// from the exact same instructions. The app overrides its on-disk steps (file
+// discovery, saving) via the repurpose generator preamble.
+export const TOPICS_SKILL_PATH = ".claude/commands/pull-topics-from-transcription.md";
+
+// LinkedIn social posts + per-post video-clip timestamps.
+export const SOCIAL_SKILL_PATH = ".claude/skills/create-social-content/SKILL.md";
+
+// Long-form thought-leadership piece. Runs through the same draft → soften →
+// humanize chain as the SME pipeline (the draft pass swaps in this skill).
+export const WEBINAR_SKILL_PATH = ".claude/skills/webinar-content-draft/SKILL.md";
+
+// Email nurture sequences. New skill (no email skill existed before).
+export const EMAIL_SKILL_PATH = ".claude/skills/create-email-nurture/SKILL.md";
+
+// Style references for the repurpose generators (seeded as foundation docs).
+export const LINKEDIN_EXAMPLES_PATH = "repurpose-agent/examples/social-media/linkedin.md";
+export const NURTURE_EXAMPLES_PATH = "repurpose-agent/examples/emails/nurtures.md";
+
+// All four repurpose skills (seeded with doc_class='skill').
+export const REPURPOSE_SKILL_PATHS = [
+  TOPICS_SKILL_PATH,
+  SOCIAL_SKILL_PATH,
+  WEBINAR_SKILL_PATH,
+  EMAIL_SKILL_PATH,
+];
+
+// The two repurpose example files (seeded with doc_class='foundation' so they
+// show up under Foundation files like the cerby-example samples).
+export const REPURPOSE_EXAMPLE_FILES = [LINKEDIN_EXAMPLES_PATH, NURTURE_EXAMPLES_PATH];

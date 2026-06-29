@@ -34,12 +34,18 @@ You are generating on-brand Cerby content via the Content OS system. The followi
 4. Do not invent product capabilities, customer names, metrics, or external quotes. Where the transcript leaves a gap that needs a proof point, mark it rather than fabricating.
 5. The gold-standard cerby-example files override voice-file guidance on any stylistic question they demonstrate.
 
-Follow the SME Transcript Draft skill instructions below exactly — the structuring discipline (verbatim quotes stay verbatim, don't promote implied ideas to claims, preserve distinctive SME language) is the integrity layer and is non-negotiable.
+Follow the skill instructions below exactly — the structuring discipline (verbatim quotes stay verbatim, don't promote implied ideas to claims, preserve distinctive speaker language) is the integrity layer and is non-negotiable.
 
 Produce a single markdown document: a frontmatter block followed by the piece in clean markdown. Do not wrap the whole thing in a code fence. Return only the document — no preamble like "Here is the draft".`;
 
-async function buildSystemPrompt(): Promise<string> {
-  const { combined } = await loadFoundationContext();
+// The draft-pass system prompt: the non-negotiable integrity rules + a skill's
+// instructions + foundation + examples. Parameterized by skill so the SME and
+// repurpose-long-form pipelines share one builder. Exported for src/lib/repurpose.ts.
+export async function buildSystemPrompt(
+  skillPath?: string,
+  skillHeading?: string,
+): Promise<string> {
+  const { combined } = await loadFoundationContext(skillPath, skillHeading);
   return `${NON_NEGOTIABLE_RULES}\n\n${combined}`;
 }
 
@@ -118,16 +124,40 @@ export async function generatePiece(
   // the signed-in user. Optional — generation works without it.
   logContext?: ModelCallLogContext,
 ): Promise<string> {
-  const client = getAnthropicClient();
   // The user-selected model. resolveModel() falls back to the default for a
   // missing or unrecognized value. All three passes run on the same model.
   const model = resolveModel(input.model);
-
-  // Pass 1 — Draft from the transcript.
-  const draft = await callModel(
-    client,
+  return runDraftSoftenHumanize(
     await buildSystemPrompt(),
     buildUserMessage(input),
+    model,
+    logContext,
+  );
+}
+
+/**
+ * The shared post-draft pipeline, factored out of generatePiece so both content
+ * modes run the same three passes:
+ *   1. Draft     — caller-supplied system prompt (SME skill or webinar skill) + user message
+ *   2. Soften    — idp-iga-soften skill + the -friendly foundation files
+ *   3. Humanize  — humanizer skill (style-only, Cerby voice preserved)
+ * Each stage runs on the output of the previous one. Order is fixed: softening
+ * must precede humanizing so the humanize pass can't rephrase partner-sensitive
+ * sentences the soften pass relies on. The caller persists the result.
+ */
+export async function runDraftSoftenHumanize(
+  draftSystem: string,
+  draftUserMessage: string,
+  model: string,
+  logContext?: ModelCallLogContext,
+): Promise<string> {
+  const client = getAnthropicClient();
+
+  // Pass 1 — Draft.
+  const draft = await callModel(
+    client,
+    draftSystem,
+    draftUserMessage,
     "draft",
     false,
     model,

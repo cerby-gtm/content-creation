@@ -14,18 +14,27 @@ Do not use this skill for:
 - Any content type other than LinkedIn social posts
 
 ## Required files
-This skill reads exactly four files. Do not ask the user for these — locate them automatically:
+This skill reads two groups of files: a **foundation base layer** (Cerby's facts, voice, and guardrails — shared with every other content type) and the **job-specific files** for this webinar. Do not ask the user for any of these — locate them automatically.
 
-1. **Transcription:** The single file in `repurpose-agent/transcription/`
-2. **Topics-breakdown:** The single file in `repurpose-agent/briefs/`. If two or more files exist in that directory, stop and ask the user which one to use before proceeding.
+### Foundation base layer
+These ground social content in the same facts, voice, and guardrails as the rest of the system, so social stays consistent with long-form. They are the base the LinkedIn examples sit on top of — not the final word on style (see the override rule below).
+
+- `foundation/company.md` — so every claim is real. The never-invent-Cerby-facts rule applies to social posts exactly as it does to long-form. If a post needs a fact that isn't here, stop and ask.
+- `foundation/voice-straight.md` — the voice baseline. Read it for how Cerby sounds; the LinkedIn examples refine it for the short-form register, they don't contradict it.
+- `foundation/ai-suppression.md` — the live, authoritative list of banned AI-isms. Read it in full and check every post against it before delivering. Do not rely on a remembered subset; this file is the source of truth and it changes through the feedback loop.
+
+### Job-specific files
+1. **Topics-breakdown:** The single file in `repurpose-agent/briefs/`. If two or more files exist in that directory, stop and ask the user which one to use before proceeding.
+2. **Transcription:** The single file in `repurpose-agent/transcription/`
 3. **Blog post (CTA target):** The single file in `repurpose-agent/output/`. If two or more files exist in that directory, stop and ask the user which one to use before proceeding.
 4. **LinkedIn examples:** `repurpose-agent/examples/social-media/linkedin.md`
 
-Read them in this order:
-1. `repurpose-agent/examples/social-media/linkedin.md` — read first. These examples are the primary style reference. Voice, structure, opening, length, and formatting must follow what these examples demonstrate. Do not override them with voice file guidance.
-2. The topics-breakdown file in `repurpose-agent/briefs/` — read second. This is the source of substance: quotes, stats, and supporting points for each topic.
-3. The transcription file — read third. Use it to find timestamps for each video clip. Do not use it as a source of additional substance unless the topics-breakdown has a clear gap.
-4. The blog post file — read last. Use only to extract the title and URL slug for the `[LINK]` placeholder.
+### Read order
+1. **Foundation base layer** (`foundation/company.md`, `foundation/voice-straight.md`, `foundation/ai-suppression.md`) — read first. This is the base: the facts you're allowed to state, the voice baseline, and the banned phrases.
+2. `repurpose-agent/examples/social-media/linkedin.md` — read second, and treat it as the **highest-priority style authority**. On any stylistic question it demonstrates — opening pattern, structure, length, rhythm, formatting — the examples win over the voice file. Foundation governs everything the examples don't demonstrate (facts, positioning, the suppression list). This mirrors the cerby-example hierarchy used across the system: approved, shipped content overrides the voice file on style.
+3. The topics-breakdown file in `repurpose-agent/briefs/` — the source of substance: quotes, stats, and supporting points for each topic.
+4. The transcription file — use it to find timestamps for each video clip. Do not use it as a source of additional substance unless the topics-breakdown has a clear gap.
+5. The blog post file — read last. Use only to extract the title and URL slug for the `[LINK]` placeholder.
 
 ## Ask no questions
 Do not ask the user anything before generating. All parameters are defined by this skill. Read the files and produce the output.
@@ -68,9 +77,9 @@ The transcription carries a `[MM:SS]` timestamp on **every sentence**, not just 
 
 #### Voice and style rules
 - Voice is always straight and direct. No preamble, no winding up, no soft openers. Start with the sharpest thing.
-- The LinkedIn examples in `repurpose-agent/examples/social-media/linkedin.md` are the primary style reference. When in doubt, mirror them.
+- The LinkedIn examples in `repurpose-agent/examples/social-media/linkedin.md` are the highest-priority style reference. When in doubt, mirror them — they override the voice file on any style they demonstrate.
 - Short sentences. White space. Let the writing breathe.
-- Do not use AI-ism phrases: "in a world where," "it's no secret," "at the end of the day," "dive in," "let's explore," "game-changer," "landscape," "crucial," "leverage," "supercharge," "revolutionize," or any other phrases flagged in `foundation/ai-suppression.md`.
+- Strip AI-isms. `foundation/ai-suppression.md` (read in the foundation base layer above) is the authoritative list — check every post against it in full before delivering. Do not work from a remembered subset; the file changes through the feedback loop and the version on disk always wins.
 - Never use em dashes in post copy.
 - Never use semicolons in post copy.
 - Posts should be 100–200 words of body copy. Do not pad. Do not over-explain.

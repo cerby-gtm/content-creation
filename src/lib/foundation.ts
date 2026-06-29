@@ -60,16 +60,25 @@ export interface FoundationContext {
   charCount: number;
 }
 
-export async function loadFoundationContext(): Promise<FoundationContext> {
+// Assemble the draft-pass system context: a skill's instructions + the shared
+// foundation files + the gold-standard examples, each delimited by a filename
+// header. Parameterized by skill so both content modes share one builder —
+// the SME pipeline passes SKILL_PATH (the default), the repurpose long-form
+// pipeline passes WEBINAR_SKILL_PATH. The foundation file set and examples are
+// identical across both (company, voice, awareness, personas, formats, …).
+export async function loadFoundationContext(
+  skillPath: string = SKILL_PATH,
+  skillHeading = "SME TRANSCRIPT DRAFT — SKILL INSTRUCTIONS",
+): Promise<FoundationContext> {
   const exampleSlugs = await listCerbyExampleSlugs();
-  const bodies = await fetchBodies([SKILL_PATH, ...FOUNDATION_FILES, ...exampleSlugs]);
+  const bodies = await fetchBodies([skillPath, ...FOUNDATION_FILES, ...exampleSlugs]);
 
-  const skill = withHeader(SKILL_PATH, bodies.get(SKILL_PATH)!);
+  const skill = withHeader(skillPath, bodies.get(skillPath)!);
   const foundation = FOUNDATION_FILES.map((p) => withHeader(p, bodies.get(p)!)).join("\n");
   const examples = exampleSlugs.map((p) => withHeader(p, bodies.get(p)!)).join("\n");
 
   const combined = [
-    "# SME TRANSCRIPT DRAFT — SKILL INSTRUCTIONS",
+    `# ${skillHeading}`,
     skill,
     "",
     "# FOUNDATION CONTEXT (read-only source of truth)",
@@ -86,6 +95,27 @@ export async function loadFoundationContext(): Promise<FoundationContext> {
     combined,
     charCount: combined.length,
   };
+}
+
+// Generic single-pass context builder for the repurpose generators (topics,
+// social, email). Assembles a skill doc + an explicit set of foundation/example
+// docs by slug, each under a filename header — the same byte-for-byte shape the
+// other loaders produce. Reads a single consistent snapshot (one query), so a
+// foundation edit mid-run can't change context under an in-flight pass.
+export async function loadRepurposeContext(opts: {
+  skillPath: string;
+  skillHeading: string;
+  foundationSlugs?: string[];
+}): Promise<string> {
+  const foundationSlugs = opts.foundationSlugs ?? [];
+  const bodies = await fetchBodies([opts.skillPath, ...foundationSlugs]);
+
+  const parts = [`# ${opts.skillHeading}`, withHeader(opts.skillPath, bodies.get(opts.skillPath)!)];
+  if (foundationSlugs.length) {
+    parts.push("", "# FOUNDATION CONTEXT (read-only source of truth)");
+    parts.push(foundationSlugs.map((p) => withHeader(p, bodies.get(p)!)).join("\n"));
+  }
+  return parts.join("\n");
 }
 
 // Pass 2 system context: the idp-iga-soften skill plus the approved-framing

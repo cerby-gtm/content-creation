@@ -411,10 +411,12 @@ export interface ProposeResult {
 // proposal row so the caller can open the detail modal immediately, or a notice
 // when nothing was created.
 export async function proposeRuleFromPrompt(
-  pieceId: string,
+  subject: { pieceId?: string | null; outputId?: string | null },
   prompt: string,
   createdBy: string | null,
 ): Promise<ProposeResult> {
+  const pieceId = subject.pieceId ?? null;
+  const outputId = subject.outputId ?? null;
   const docs = await query<DocRow>(
     "SELECT id, slug, title, kind, doc_class FROM documents ORDER BY display_order",
   );
@@ -464,13 +466,14 @@ export async function proposeRuleFromPrompt(
   try {
     await conn.query("BEGIN");
     // Synthetic edit event: no before/after text, but it carries the prompt as
-    // the instruction and links the rule to the piece (the sidebar filters by
-    // feedback_events.piece_id).
+    // the instruction and links the rule to its subject — a piece OR a repurpose
+    // output — so the per-subject sidebar (which filters by piece_id / output_id)
+    // shows it.
     const fbRes = await conn.query<{ id: string }>(
-      `INSERT INTO feedback_events (piece_id, edit_type, instruction, selected_text, before_text, after_text, lane, created_by)
-       VALUES ($1, 'manual_rule', $2, '', '', '', 'rule_candidate', $3)
+      `INSERT INTO feedback_events (piece_id, output_id, edit_type, instruction, selected_text, before_text, after_text, lane, created_by)
+       VALUES ($1, $2, 'manual_rule', $3, '', '', '', 'rule_candidate', $4)
        RETURNING id`,
-      [pieceId, prompt, createdBy],
+      [pieceId, outputId, prompt, createdBy],
     );
     const feedbackId = fbRes.rows[0].id;
     const orderRes = await conn.query<{ next: number }>(

@@ -6,6 +6,8 @@ import {
   CERBY_EXAMPLE_PREFIX,
   FOUNDATION_FILES,
   HUMANIZER_SKILL_PATH,
+  REPURPOSE_EXAMPLE_FILES,
+  REPURPOSE_SKILL_PATHS,
   SAMPLES_DIR,
   SKILL_PATH,
   SOFTEN_FOUNDATION_FILES,
@@ -46,11 +48,23 @@ function listCerbyExamples(): string[] {
 // Every document the app reads, in a stable order. Foundation files (draft +
 // soften), the three skill files, and all gold-standard examples. product-specs
 // appears in both FOUNDATION_FILES and SOFTEN_FOUNDATION_FILES — dedupe by slug.
+//
+// SEED_SCOPE=repurpose narrows this to ONLY the repurpose docs (the four skills
+// + two example files). Use this against a production database whose foundation
+// prose has accumulated feedback-loop edits: a full seed would upsert and revert
+// those bodies, but the repurpose slugs are net-new, so seeding only them is
+// purely additive. See REPURPOSE-NEXT-STEPS.md Step 6.
 function collectDocs(): SeedDoc[] {
   const bySlug = new Map<string, SeedDoc>();
   const add = (slug: string, docClass: SeedDoc["docClass"]) => {
     if (!bySlug.has(slug)) bySlug.set(slug, { slug, docClass });
   };
+
+  if (process.env.SEED_SCOPE === "repurpose") {
+    for (const p of REPURPOSE_SKILL_PATHS) add(p, "skill");
+    for (const p of REPURPOSE_EXAMPLE_FILES) add(p, "foundation");
+    return [...bySlug.values()];
+  }
 
   for (const p of FOUNDATION_FILES) add(p, "foundation");
   for (const p of SOFTEN_FOUNDATION_FILES) add(p, "foundation");
@@ -58,6 +72,12 @@ function collectDocs(): SeedDoc[] {
   add(SKILL_PATH, "skill");
   add(SOFTEN_SKILL_PATH, "skill");
   add(HUMANIZER_SKILL_PATH, "skill");
+
+  // Content Repurpose mode: the four repurpose skills + the two example files
+  // (LinkedIn + email nurtures). Example files seed as foundation docs so they
+  // appear under Foundation files and accumulate rules through the feedback loop.
+  for (const p of REPURPOSE_SKILL_PATHS) add(p, "skill");
+  for (const p of REPURPOSE_EXAMPLE_FILES) add(p, "foundation");
 
   return [...bySlug.values()];
 }
@@ -97,7 +117,16 @@ async function main() {
 
   try {
     await client.query("BEGIN");
+    // A scoped (repurpose-only) seed appends after the existing documents so its
+    // display_order doesn't collide with foundation rows already in the table; a
+    // full seed owns the whole table and starts at 0.
     let order = 0;
+    if (process.env.SEED_SCOPE === "repurpose") {
+      const max = await client.query<{ max: number }>(
+        "SELECT COALESCE(MAX(display_order), 0) AS max FROM documents",
+      );
+      order = Number(max.rows[0].max) + 1;
+    }
     for (const { slug, docClass } of docs) {
       const abs = join(process.cwd(), slug);
       const body = readFileSync(abs, "utf8");

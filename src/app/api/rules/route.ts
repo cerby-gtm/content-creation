@@ -19,15 +19,17 @@ interface ProposalRow {
   after_text: string | null;
 }
 
-// GET /api/rules?status=proposed[&piece_id=<uuid>]
+// GET /api/rules?status=proposed[&piece_id=<uuid>][&output_id=<uuid>]
 // Lists rules (default: proposed) with their target document and the edit that
-// spawned them, for the admin review screen. When piece_id is given, the list is
-// scoped to rules that originated from edits on that piece — the per-piece
-// sidebar uses this so an editor sees only the proposals their work spawned.
+// spawned them, for the admin review screen. When piece_id (content pieces) or
+// output_id (repurpose outputs) is given, the list is scoped to rules that
+// originated from edits on that subject — the per-piece / per-output sidebar uses
+// this so an editor sees only the proposals their work spawned.
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const status = url.searchParams.get("status") ?? "proposed";
   const pieceId = url.searchParams.get("piece_id");
+  const outputId = url.searchParams.get("output_id");
 
   const rules = await query<ProposalRow>(
     `SELECT r.id, r.body, r.section, r.status, r.created_at, r.placement,
@@ -38,8 +40,9 @@ export async function GET(request: Request) {
      LEFT JOIN feedback_events f ON f.id = r.source_feedback_id
      WHERE r.status = $1
        AND ($2::uuid IS NULL OR f.piece_id = $2::uuid)
+       AND ($3::uuid IS NULL OR f.output_id = $3::uuid)
      ORDER BY r.created_at DESC`,
-    [status, pieceId],
+    [status, pieceId, outputId],
   );
 
   return NextResponse.json({ rules });

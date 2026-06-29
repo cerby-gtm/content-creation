@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import Sidebar from "./components/Sidebar";
 import SignOutButton from "./components/SignOutButton";
 
 interface PieceListItem {
@@ -28,7 +29,6 @@ export default function HomePage() {
   const [pendingDelete, setPendingDelete] = useState<PieceListItem | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
 
   async function confirmDelete() {
     if (!pendingDelete) return;
@@ -70,43 +70,9 @@ export default function HomePage() {
     return () => clearInterval(t);
   }, []);
 
-  useEffect(() => {
-    // Only admins see the Analytics link; the page itself also enforces this.
-    fetch("/api/me", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setIsAdmin(Boolean(d?.isAdmin)))
-      .catch(() => {});
-  }, []);
-
   return (
     <>
-      <aside className="fixed left-0 top-0 z-30 hidden h-screen w-72 overflow-y-auto border-r border-gray-200 bg-gray-50 px-4 py-6 lg:block">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-          Cerby Content OS
-        </h2>
-        <nav className="mt-4 space-y-1">
-          <Link
-            href="/review"
-            className="block rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-          >
-            Proposed rules
-          </Link>
-          <Link
-            href="/documents"
-            className="block rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-          >
-            Foundation files
-          </Link>
-          {isAdmin && (
-            <Link
-              href="/admin/analytics"
-              className="block rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-            >
-              Analytics
-            </Link>
-          )}
-        </nav>
-      </aside>
+      <Sidebar mode="create" />
 
       <main className="w-full max-w-4xl flex-1 px-6 py-10 lg:ml-72">
         <div className="mb-8 flex items-start justify-between">

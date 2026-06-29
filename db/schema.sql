@@ -142,7 +142,12 @@ CREATE INDEX IF NOT EXISTS quote_usages_piece_idx ON quote_usages (piece_id);
 
 CREATE TABLE IF NOT EXISTS feedback_events (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  piece_id        UUID NOT NULL REFERENCES pieces(id) ON DELETE CASCADE,
+  -- Exactly one subject is set: piece_id (content-creation pieces) OR output_id
+  -- (repurpose outputs, e.g. LinkedIn social). The FK to repurpose_outputs and
+  -- the one-of check are added below, after that table is defined. See the
+  -- "feedback_events: repurpose output subject" migration block.
+  piece_id        UUID REFERENCES pieces(id) ON DELETE CASCADE,
+  output_id       UUID,                          -- → repurpose_outputs(id); FK added below
   edit_type       TEXT NOT NULL,                  -- 'rewrite' | 'quote_swap' | 'milestone_diff'
   instruction     TEXT,                           -- the editor's instruction
   selected_text   TEXT NOT NULL,                  -- the highlighted text
@@ -247,3 +252,100 @@ CREATE TABLE IF NOT EXISTS model_calls (
 
 CREATE INDEX IF NOT EXISTS model_calls_created_at_idx ON model_calls (created_at DESC);
 CREATE INDEX IF NOT EXISTS model_calls_piece_idx ON model_calls (piece_id);
+
+-- ---------------------------------------------------------------------------
+-- Content Repurpose mode (see LIVE-APP-DESIGN.md / the repurpose plan)
+--
+-- A second content pipeline alongside SME drafting: a webinar .mp4 →
+-- Deepgram transcript → speaker rename → topics-breakdown → outputs (LinkedIn
+-- social with cut video clips, long-form thought leadership, email nurtures).
+-- Additive — the SME tables above are untouched. These three tables mirror the
+-- pieces/model_calls conventions (status column + UI polling, IF NOT EXISTS,
+-- indexes). model_calls.piece_id stays null for repurpose passes; usage is still
+-- logged for the analytics dashboard via the shared callModel path.
+-- ---------------------------------------------------------------------------
+
+-- One project = one source webinar. video_key is the object-storage key for the
+-- uploaded .mp4 (null on the paste-transcript path, where there is no video and
+-- therefore no clip cutting). The transcript is the timestamped, speaker-labeled
+-- markdown; speaker_map records the manual Speaker N → real-name rename applied
+-- to it; topics_breakdown is the editable structured brief.
+CREATE TABLE IF NOT EXISTS repurpose_projects (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_by       TEXT,                          -- session email of the submitter
+  title            TEXT,
+  video_key        TEXT,                          -- storage key for the source .mp4 (null = paste-transcript)
+  transcript       TEXT,                          -- timestamped, speaker-labeled markdown (null until transcribed)
+  speaker_map      JSONB,                         -- { "Speaker 0": "Matt Chiodi", ... } applied to the transcript
+  topics_breakdown TEXT,                          -- editable structured brief (null until generated)
+  status           TEXT NOT NULL DEFAULT 'new',   -- 'new' | 'transcribing' | 'transcribed' | 'generating_topics' | 'error'
+  error_message    TEXT,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS repurpose_projects_created_at_idx ON repurpose_projects (created_at DESC);
+CREATE INDEX IF NOT EXISTS repurpose_projects_status_idx ON repurpose_projects (status);
+
+-- One row per generated output. A project can have one of each output_type
+-- (regenerating replaces the row's body). body is the generated markdown.
+CREATE TABLE IF NOT EXISTS repurpose_outputs (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id    UUID NOT NULL REFERENCES repurpose_projects(id) ON DELETE CASCADE,
+  output_type   TEXT NOT NULL,                    -- 'social_linkedin' | 'long_form' | 'email_nurture'
+  model         TEXT,                             -- Claude model id used (see src/lib/models.ts)
+  body          TEXT,                             -- generated markdown (null until done)
+  status        TEXT NOT NULL DEFAULT 'pending',  -- 'pending' | 'generating' | 'done' | 'error'
+  error_message TEXT,
+  created_by    TEXT,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS repurpose_outputs_project_idx ON repurpose_outputs (project_id);
+CREATE INDEX IF NOT EXISTS repurpose_outputs_status_idx ON repurpose_outputs (status);
+
+-- ---------------------------------------------------------------------------
+-- feedback_events: repurpose output subject
+-- The feedback loop (rewrite → rule) originally only ran on `pieces`. It now
+-- also runs on repurpose outputs (the LinkedIn social body), so a feedback event
+-- references EITHER a piece OR an output. piece_id is already nullable and the
+-- output_id column is declared in the table above; this block (placed after
+-- repurpose_outputs exists) adds the FK, the one-of-two check, and the index.
+-- Idempotent: safe to re-run on databases that predate the column.
+-- ---------------------------------------------------------------------------
+ALTER TABLE feedback_events ALTER COLUMN piece_id DROP NOT NULL;
+ALTER TABLE feedback_events ADD COLUMN IF NOT EXISTS output_id UUID;
+
+DO $$ BEGIN
+  ALTER TABLE feedback_events ADD CONSTRAINT feedback_events_output_id_fkey
+    FOREIGN KEY (output_id) REFERENCES repurpose_outputs(id) ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE feedback_events ADD CONSTRAINT feedback_events_subject_chk
+    CHECK ((piece_id IS NOT NULL) <> (output_id IS NOT NULL));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+CREATE INDEX IF NOT EXISTS feedback_events_output_idx ON feedback_events (output_id);
+
+-- One row per video clip cut for a social output. label is the position-derived
+-- id (t1a, t1b, t2a, …); start_str/end_str are the MM:SS window parsed from the
+-- output's **Video clip:** lines; clip_key is the storage key for the cut .mp4;
+-- verify_text is the Deepgram readback of the cut clip (null until verified).
+CREATE TABLE IF NOT EXISTS repurpose_clips (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  output_id     UUID NOT NULL REFERENCES repurpose_outputs(id) ON DELETE CASCADE,
+  label         TEXT NOT NULL,                    -- 't1a', 't1b', 't2a', … (derived by position)
+  start_str     TEXT NOT NULL,                    -- clip start, MM:SS
+  end_str       TEXT NOT NULL,                    -- clip end, MM:SS
+  clip_key      TEXT,                             -- storage key for the cut .mp4 (null until cut)
+  status        TEXT NOT NULL DEFAULT 'pending',  -- 'pending' | 'cutting' | 'done' | 'error'
+  verify_text   TEXT,                             -- Deepgram readback of the cut clip (non-blocking)
+  error_message TEXT,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS repurpose_clips_output_idx ON repurpose_clips (output_id);
+CREATE INDEX IF NOT EXISTS repurpose_clips_status_idx ON repurpose_clips (status);

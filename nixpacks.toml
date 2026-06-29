@@ -1,0 +1,10 @@
+# Railway builds this app with Nixpacks (see railway.json). Nixpacks auto-detects
+# the Node provider; this file only ADDS the ffmpeg binary to the build so the
+# clip-cutting job (src/lib/clips.ts) can run `ffmpeg` at runtime.
+#
+# aptPkgs is additive — it appends an apt-get install step to the setup phase
+# without replacing Nixpacks' Node/Nix setup, so Node detection still works.
+# Verify in the deployed container with: ffmpeg -version
+
+[phases.setup]
+aptPkgs = ["ffmpeg"]
